@@ -5,7 +5,7 @@ import pandas as pd
 import os
 import time
 
-start_time = time.time()
+ini = time.time()
 
 # BeSoccer tiene antiscraper por lo que declaramos una cabecera html con un user agent
 
@@ -18,8 +18,6 @@ headers = {'User-Agent':
 
 # primero definimos las competiciones a scrapear (para concatenar luego en el URL)
 nombres_competiciones = ["primera"]
-""", "segunda", "primera_division_rfef",
-                         "segunda_division_rfef", "tercera_division_rfef", "galicia", "liga_revelacao", "vitalis", "portugal"""
 # segundo necesitamos saber cuántos equipos hay por liga
 nombres_equipos = []
 # tercero necesitamos saber los URLs de los jugadores a scrapear
@@ -27,13 +25,13 @@ nombres_equipos = []
 urls_jugadores = []
 
 nombres_jugadores = []
-
+"""
 temporada_jugadores = []
 pais_jugadores = []
 
 # altura para dfcentral o portero
 
-fecha_nac_jugadores = []
+ fecha_nac_jugadores = []
 lugar_nac_jugadores = []
 demarcacion_jugadores = []
 pierna_jugadores = []
@@ -55,10 +53,12 @@ twitter_jugadores = []
 posicion_principal_jugadores = []
 posicion_principal_jugadores_porcentaje = []
 posicion_alternativa_jugadores = []
-posicion_alternativa_jugadores_porcentaje = []
-df = pd.DataFrame()
+posicion_alternativa_jugadores_porcentaje = [] """
+
+
 # diccionario vacío con las etiquetas como clave
 datos = {
+    "Nombre": "",
     "Fecha nacimiento": "",
     "Localidad nacimiento": "",
     "País nacimiento": "",
@@ -86,7 +86,6 @@ asistencias__totales_jugadores = []
 partidos_totales_jugados = []  # <td data-content-tab="tprc1" class="grey">696</td>
 tarjetas_totales_jugadores = [] """
 
-
 # obtenemos los nombres de los equipos para poder recorrer luego cada uno por sus jugadores
 for competicion in nombres_competiciones:
     paginaCompeticiones = "https://es.besoccer.com/competicion/clasificacion/" + \
@@ -103,9 +102,8 @@ for competicion in nombres_competiciones:
         nombres_equipos.append(nombre_equipo.text)
 
 # obtenemos las URLs de los jugadores recorriendo cada equipo
-#for equipo in nombres_equipos:
-    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/barcelona"
-        #equipo+"#team_performance" + \
+for equipo in nombres_equipos:
+    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/"+ equipo +"/#team_performance"
     respuestaEquipos = requests.get(paginaEquipos, headers=headers)
     htmlEquipos = BeautifulSoup(respuestaEquipos.content, 'html.parser')
     """consultas para este URL:
@@ -116,17 +114,19 @@ for competicion in nombres_competiciones:
         urls_jugadores.append(url_jugador)
 
 # ahora trabajaremos con cada jugador
+datos_jugadores = []
 for urljugador in urls_jugadores:
     respuestaJugadores = requests.get(urljugador, headers=headers)
     htmlJugadores = BeautifulSoup(respuestaJugadores.content, 'html.parser')
-
-# elemento padre que contiene la información
+    df_final = pd.DataFrame()
+    # elemento padre que contiene la información
     dataPanelTitle = htmlJugadores.find("div", id="mod_player_stats")
-    divDataPanelTitle=htmlJugadores.find('div', class_="panel-title")
+    divDataPanelTitle = htmlJugadores.find('div', class_="panel-title")
     for div in divDataPanelTitle:
         nombres_jugadores.append(div.text)
     # find_all para buscar todos los elementos 'div'
-    divDataTableList = htmlJugadores.find_all("div", class_="table-row")    
+    divDataTableList = htmlJugadores.find_all("div", class_="table-row")
+    datos = {}
     for div in divDataTableList:
         divText = div.find('div')
         for elements in divText.next_siblings:
@@ -139,25 +139,31 @@ for urljugador in urls_jugadores:
                         datos[link.text] = link["href"]
             except TypeError:
                 datos[divText.text.strip()] = elements.text.strip()
-    print(nombres_jugadores)
-    df_nombres = pd.DataFrame(nombres_jugadores, columns=["Nombre del jugador"])
+    datos_jugadores.append(datos)
 
-    #divDataPanelList = htmlJugadores.find_all("div", class_="big-row")
-    datos = {k: v.strip().replace("\n", ",").replace("  ", "")
-             for k, v in datos.items()}
-    # convierta el diccionario a un dataframe
-    df_temp = pd.DataFrame.from_dict(datos,orient='index').T
-# Concatenar todos los diccionarios en un DataFrame
-    df = pd.concat([df, df_temp], ignore_index=True)
-    df = pd.concat([df_nombres, df], ignore_index=True)
+    """ df_final = pd.DataFrame()
+for nombre, datos_jugador in zip(nombres_jugadores, datos_jugadores):
+    if isinstance(datos_jugador, dict):
+        df_temp = pd.DataFrame.from_dict(datos_jugador, orient='index')
+        df_temp.insert(loc=0, column='Nombre', value=nombre)
+    else:
+        df_temp = pd.DataFrame(datos_jugador)
+    df_final = pd.concat([df_final,df_temp], ignore_index=True)
+print(df_final) 
 
-print(df)
-
+    df_final = pd.DataFrame()
+    for nombre, datos_jugador in zip(nombres_jugadores, datos_jugadores):
+        df_temp = pd.DataFrame(datos_jugador, index=[nombre])
+        df_final = pd.concat([df_final,df_temp], ignore_index=True)
+    print(df_final) esto itera bien pero faltan los nombres
+    """
+    df_final = pd.DataFrame(datos_jugadores)
+    df_final.insert(loc=0, column='Nombre', value=nombres_jugadores)
+    print(df_final)
 # exportar el dataframe a .csv
-df.to_csv(os.path.expanduser('~/Desktop\\') + r' urls.csv',
-          index=False, header=True)
-end_time = time.time()
+df_final.to_csv(os.path.expanduser('~/Desktop\\') + r' jugadores.csv',
+                index=False, header=True)
+fin = time.time()
 
-
-minutes, seconds = divmod(end_time-start_time, 60)
-print(f"Tiempo de ejecución: {minutes:.0f} minutos y {seconds:.2f} segundos")
+m, s = divmod(fin-ini, 60)
+print(f"Tiempo de ejecución: {m:.0f} minuto(s) y {s:.2f} segundo(s)")
