@@ -1,9 +1,6 @@
 # importamos todas las librerías necesarias para el programa
-import requests
+import requests,re,os,time,pandas as pd,unicodedata
 from bs4 import BeautifulSoup
-import pandas as pd
-import os
-import time
 
 ini = time.time()
 
@@ -25,6 +22,17 @@ nombres_equipos = []
 urls_jugadores = []
 
 nombres_jugadores = []
+def arregla(arr):
+    new_arr = []
+    for element in arr:
+        # Remove diacritics (accents)
+        element = unicodedata.normalize('NFKD', element).encode('ASCII', 'ignore').decode()
+        # Replace spaces with underscores
+        element = re.sub(r"\s", "_", element)
+        # Replace "R." with "real"
+        element = re.sub("R\.", "real", element)
+        new_arr.append(element)
+    return new_arr
 """
 temporada_jugadores = []
 pais_jugadores = []
@@ -100,10 +108,12 @@ for competicion in nombres_competiciones:
 
     for nombre_equipo in nombresEquipos:
         nombres_equipos.append(nombre_equipo.text)
-
+print(nombres_equipos)
+arregla(nombres_equipos)
 # obtenemos las URLs de los jugadores recorriendo cada equipo
 for equipo in nombres_equipos:
-    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/"+ equipo +"/#team_performance"
+    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/" + \
+        equipo + "/#team_performance"
     respuestaEquipos = requests.get(paginaEquipos, headers=headers)
     htmlEquipos = BeautifulSoup(respuestaEquipos.content, 'html.parser')
     """consultas para este URL:
@@ -140,23 +150,6 @@ for urljugador in urls_jugadores:
             except TypeError:
                 datos[divText.text.strip()] = elements.text.strip()
     datos_jugadores.append(datos)
-
-    """ df_final = pd.DataFrame()
-for nombre, datos_jugador in zip(nombres_jugadores, datos_jugadores):
-    if isinstance(datos_jugador, dict):
-        df_temp = pd.DataFrame.from_dict(datos_jugador, orient='index')
-        df_temp.insert(loc=0, column='Nombre', value=nombre)
-    else:
-        df_temp = pd.DataFrame(datos_jugador)
-    df_final = pd.concat([df_final,df_temp], ignore_index=True)
-print(df_final) 
-
-    df_final = pd.DataFrame()
-    for nombre, datos_jugador in zip(nombres_jugadores, datos_jugadores):
-        df_temp = pd.DataFrame(datos_jugador, index=[nombre])
-        df_final = pd.concat([df_final,df_temp], ignore_index=True)
-    print(df_final) esto itera bien pero faltan los nombres
-    """
     df_final = pd.DataFrame(datos_jugadores)
     df_final.insert(loc=0, column='Nombre', value=nombres_jugadores)
     print(df_final)
