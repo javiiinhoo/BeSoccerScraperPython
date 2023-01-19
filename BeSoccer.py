@@ -21,15 +21,26 @@ def ajuste(arr, len):
     return arr[:len]
 
 
+def rellenar_array(arr, value, length):
+    # Obtenemos la diferencia entre la longitud actual y la deseada
+    diff = length - len(arr)
+
+    # Agregamos el valor al array la cantidad de veces necesarias
+    for i in range(diff):
+        arr.append(value)
+
+
 # primero definimos las competiciones a scrapear (para concatenar luego en el URL)
-nombres_competiciones = ["primera", "segunda", "primera_division_rfef",
-                         "segunda_division_rfef", "tercera_division_rfef", "galicia", "liga_revelacao", "vitalis", "portugal"]
+nombres_competiciones = ["primera"]
+""""""
+
 # segundo necesitamos saber cuántos equipos hay por liga
 nombres_equipos = []
 # tercero necesitamos saber los URLs de los jugadores a scrapear
 
 urls_jugadores = []
 redes_jugadores = []
+df_final = pd.DataFrame()
 """
 # find span class action  y que dentro tenga un strong que ponga cesión al o cesion con
 nombres_jugadores_cedidos = []
@@ -47,14 +58,7 @@ months = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
           "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
-datosExtra = {
-    "Minutos jugados": "",
-    "Goles": "",
-    "Posición principal": "",
-    "Posición principal(%)": "",
-    "Posición alternativa": "",
-    "Posición alternativa(%)": ""
-}
+datosExtra = {}
 
 
 def formato(date_string):
@@ -96,6 +100,15 @@ def arregla(arr):
     return new_arr
 
 
+c = ["País nacimiento", "Continente nacimiento", "Región de nacimiento",
+     "Nacionalidad(es)", "Dorsal más común", "Otros dorsales", "Etapa juveniles",
+     "Valor máximo en su carrera", "General", "Su edad", "En su país", "En su posición",
+     "En su demarcación", "Proveedor", "Inicio contrato", "Traspasos", "Valor TM",
+     "Valor CIES", "Cláusula resc.", "Veces convocado", "Partidos titular",
+     "Desde el banquillo", "Debut", "Edad de debut", "Último partido",
+     "Edad en último partido", "Tarjeta Amarilla", "Últ. renovación",
+     "Gol", "Último traspaso", "Total traspasos", "Asistencia de gol", "Tiro al palo", "Equipo actual"]
+
 # diccionario vacío con las etiquetas como clave
 datos = {
     "Nombre": "",
@@ -118,6 +131,35 @@ datos = {
 
 }
 
+nuevos_nombres_columnas = {
+    'URL': 'URL:',
+    'Temporada': 'Temporada',
+    'Equipo': 'Equipo',
+    'Edad': 'Edad',
+    'Nombre': 'nombre',
+    'Fecha nacimiento': 'Fecha nacimiento',
+    'Localidad nacimiento': 'Lugar nacimiento',
+    'Demarcación': 'demarcacion',
+    'Pierna predominante': 'pierna',
+    'ELO': 'elo',
+    'Potencial': 'potencial',
+    'Competición principal': 'Competicion',
+    'Equipo anterior': 'Equipo anterior',
+    'Competición anterior': 'Competicion anterior',
+    'Agente': 'Agente',
+    'Fin contrato': 'Fin de Contrato',
+    'Valor mercado': 'Valor de Mercado',
+    'Salario': 'Salario',
+    'MinutosJugados': 'MinutosJugados',
+    'Goles': 'Goles',
+    'Twitter': 'Twitter',
+    'Posición principal': 'Posicion principal',
+    'Posición princ %': 'Posicion princ %',
+    'Posición Alternativa': 'Posicion Alternativa',
+    'Posición alternativa(%)': 'Posicion Altern%'
+}
+
+
 # obtenemos los nombres de los equipos para poder recorrer luego cada uno por sus jugadores
 for competicion in nombres_competiciones:
     paginaCompeticiones = "https://es.besoccer.com/competicion/clasificacion/" + \
@@ -125,27 +167,28 @@ for competicion in nombres_competiciones:
     respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
     htmlCompeticiones = BeautifulSoup(
         respuestaCompeticiones.content, 'html.parser')
-    """consultas para este URL:
-    obtener el valor de las etiquetas <span> con class team.name
-    """
+    """obtener el valor de las etiquetas <span> con class team.name"""
+
     nombresEquipos = htmlCompeticiones.find_all('span', {"class": "team-name"})
 
     for nombre_equipo in nombresEquipos:
         nombres_equipos.append(nombre_equipo.text)
 # obtenemos las URLs de los jugadores recorriendo cada equipo
-# for equipo in nombres_equipos:
-    # paginaEquipos = "https://es.besoccer.com/equipo/plantilla/" + \
-     #   equipo + "/#team_performance"
-    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/barcelona"
+    """ for equipo in nombres_equipos:
+    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/" + \
+        equipo + "/#team_performance" """
+    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/barcelona   "
     respuestaEquipos = requests.get(paginaEquipos, headers=headers)
     htmlEquipos = BeautifulSoup(respuestaEquipos.content, 'html.parser')
-    """consultas para este URL:
-    obtener el valor de las etiquetas <a> con class name
-    """
-    for td in htmlEquipos.find_all("td", {"class": "name"}):
-        url_jugador = td.find("a", href=True)["href"]
-        urls_jugadores.append(url_jugador)
+"""consultas para este URL:
+obtener el valor de las etiquetas <a> con class name
+"""
+for td in htmlEquipos.find_all("td", {"class": "name"}):
+    url_jugador = td.find("a", href=True)["href"]
+    urls_jugadores.append(url_jugador)
 
+
+df_final = pd.DataFrame()
 # ahora trabajaremos con cada jugador
 datos_jugadores = []
 for urljugador in urls_jugadores:
@@ -154,33 +197,72 @@ for urljugador in urls_jugadores:
     dataPanelTitle = htmlJugadores.find("div", id="mod_player_stats")
     divDataPanelTitle = htmlJugadores.find('div', class_="panel-title")
 
-    redesJugadores = htmlJugadores.find('div', class_="main-text break-url")
-    if redesJugadores is not None:
-        for div in redesJugadores:
-            redes_jugadores.append(div.text)
+    redesJugadores = htmlJugadores.find(
+        'div', class_="desc-boxes")
+    if redesJugadores:
+        twitter = redesJugadores.find_all(
+            'div', class_=["sub-text2", "break-url"])
+        twitter_url = next((url.text for sub, url in zip(
+            twitter[::2], twitter[1::2]) if sub.text.strip() == 'Twitter'), None)
+        redes_jugadores.append(twitter_url)
     else:
         redes_jugadores.append(None)
+
     divDataPanelHead = htmlJugadores.find('div', class_="panel-head")
 
     posicionJugadores = htmlJugadores.find('div', class_="role-box")
-    datosMayores = htmlJugadores.find('div', class_="main-line")
 
-    if datosMayores is not None:
-        for div in datosMayores:
-            datos_jugadores.append(div.text)
-    else:
-        datos_jugadores(None)
+    for item_col in htmlJugadores.find_all('div', class_='compare-box'):
+
+        main_role = item_col.find('div', class_="main-role")
+        other_roles = item_col.find('ul', class_="position-list")
+
+        if main_role.text is not None:
+            role_span = main_role.find_all('span')
+            if role_span is not None:
+                for i, element in enumerate(role_span):
+                    text = element.get_text()
+                    if i == 0:
+                        datosExtra["Posición principal"] = text
+                    elif i == 1:
+                        datosExtra["Posición princ %"] = text
+        else:
+            datosExtra["Posición principal"] = None
+            datosExtra["Posición princ %"] = None
+
+        if other_roles is not None:
+            other_role = other_roles.find_all('li')
+            if other_role is not None:
+                for i, element in enumerate(other_role):
+                    text = element.get_text()
+                    if text is not None:
+                        text_split = text.split('\n')
+                        posicion = text_split[1]
+                        porcentaje = text_split[2]
+                        datosExtra["Posición Alternativa"] = posicion
+                        datosExtra["Posicion Altern%"] = porcentaje
+        else:
+            datosExtra["Posición Alternativa"] = None
+            datosExtra["Posición Altern%"] = None
 
     for div in divDataPanelTitle:
         nombres_jugadores.append(div.text)
+    for item_col in htmlJugadores.find_all('div', class_='item-col'):
+        main_line = item_col.find('div', class_='main-line')
+        other_line = item_col.find('div', class_='other-line')
+        if main_line and other_line:
+            other_line_texts = other_line.find_all('div')
+            if len(other_line_texts) > 1:
+                minutes = None
+                goals = None
+                for other_line_text in other_line_texts:
+                    text = other_line_text.text.strip()
+                    if text == "Minutos":
+                        datosExtra["MinutosJugados"] = main_line.text.replace(
+                            "'", "")
+                    elif text == "Goles/90'":
+                        datosExtra["Goles"] = main_line.text
 
-    for div in datosMayores:
-            """ 
-            if not elements.isspace() and divText.text != "":
-                if divText.next_siblings == "Minutos jugados" or divText.next_siblings == "Goles/90": """
-            print(div.text)
-            datosExtra.append(div.text)
-    #print(datosExtra)
     nombres_jugadores = [n for i, n in enumerate(
         nombres_jugadores) if n not in nombres_jugadores[:i]]
     divDataTableList = htmlJugadores.find_all("div", class_="table-row")
@@ -206,36 +288,45 @@ for urljugador in urls_jugadores:
                             datos[link.text] = link["href"]
             except TypeError:
                 datos[divText.text.strip()] = elements.text.strip()
+
     if datos["Fecha nacimiento"] != "":
         fe_nac = datetime.datetime.strptime(
             formato(datos["Fecha nacimiento"]), "%d/%B/%Y")
         edad = (datetime.datetime.now() - fe_nac).days / 365
     else:
         edad = None
+    datos.update(datosExtra)
     datos_jugadores.append(datos)
     edad_jugadores.append(math.trunc(edad))
-df = pd.DataFrame(datos_jugadores)
-edad_jugadores = ajuste(edad_jugadores, len(nombres_jugadores))
-datos_jugadores = ajuste(datos_jugadores, len(nombres_jugadores))
-""" print(edad_jugadores)
-print(datos_jugadores) """
-df.drop_duplicates(inplace=True)
-df.insert(loc=1, column='Temporada', value="2022/23")
-df.insert(loc=2, column='Equipo', value=ajuste(
-    nombres_equipos, len(nombres_jugadores)))
-df.insert(loc=3, column='Edad', value=edad_jugadores)
-df.insert(loc=4, column='Nombre', value=nombres_jugadores)
-df.insert(loc=18, column='Twitter', value=redes_jugadores)
 
-df = df.reindex(columns=['URL:', 'Temporada', 'Equipo', 'Edad', 'Nombre',
-                         'Fecha nacimiento', 'Localidad nacimiento', 'Demarcación', 'Pierna predominante',  'ELO',
-                         'Potencial', 'Competición principal', 'Competición anterior',
-                         'Equipo anterior', 'Fin contrato', 'Valor mercado', 'Goles', 'Minutos jugados', 'Agente', 'Salario',
-                         'Twitter', 'Posición principal', 'Posición principal (%)', 'Posición alternativa', 'Posición alternativa (%)'])
-print(df)
-# exportar el dataframe a .csv
+for d in datos_jugadores:
+    for col in c:
+        d.pop(col, None)
+
+    edad_jugadores = ajuste(edad_jugadores, len(nombres_jugadores))
+    df = pd.DataFrame(datos_jugadores)
+
+    df.drop_duplicates(inplace=True)
+
+    df.insert(loc=1, column='Temporada', value="2022/23")
+    df.insert(loc=2, column='Equipo', value=nombre_equipo.text)
+    df.insert(loc=3, column='Edad', value=edad_jugadores)
+    df.insert(loc=4, column='Nombre', value=nombres_jugadores)
+    df.insert(loc=20, column='Twitter', value=redes_jugadores)
+
+    df = df.rename(columns=nuevos_nombres_columnas)
+
+    # reorder columns
+    df = df[['URL:', 'Temporada', 'Equipo', 'Edad', 'nombre', 'Fecha nacimiento',
+            'Lugar nacimiento', 'demarcacion', 'pierna', 'elo', 'potencial',
+             'Competicion', 'Competicion anterior', 'Equipo anterior', 'Fin de Contrato',
+             'Valor de Mercado', 'Goles', 'MinutosJugados', 'Agente', 'Salario', 'Twitter', 'Posicion principal',
+             'Posicion princ %', 'Posicion Alternativa', 'Posicion Altern%']]
+
+
 df.to_csv(os.path.expanduser('~/Desktop\\') + r' jugadores.csv',
           index=False, header=True)
+
 fin = time.time()
 
 m, s = divmod(fin-ini, 60)
