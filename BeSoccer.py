@@ -31,7 +31,10 @@ def rellenar_array(arr, value, length):
 
 
 # primero definimos las competiciones a scrapear (para concatenar luego en el URL)
-nombres_competiciones = ["primera"]
+nombres_competiciones = ["portugal"]
+"""
+, "segunda", "primera_division_rfef",
+                         "segunda_division_rfef", "tercera_division_rfef", "galicia", "liga_revelacao", "vitalis", "portugal"]"""
 """"""
 
 # segundo necesitamos saber cuántos equipos hay por liga
@@ -39,6 +42,8 @@ nombres_equipos = []
 # tercero necesitamos saber los URLs de los jugadores a scrapear
 
 urls_jugadores = []
+equipo_jugadores = []
+urls_equipos = []
 redes_jugadores = []
 df_final = pd.DataFrame()
 """
@@ -158,95 +163,88 @@ nuevos_nombres_columnas = {
     'Posición Alternativa': 'Posicion Alternativa',
     'Posición alternativa(%)': 'Posicion Altern%'
 }
-
+occurrences = {}
 
 # obtenemos los nombres de los equipos para poder recorrer luego cada uno por sus jugadores
 for competicion in nombres_competiciones:
-    paginaCompeticiones = "https://es.besoccer.com/competicion/clasificacion/" + \
-        competicion+"/2023"
+    paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{competicion}/2023"
     respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
     htmlCompeticiones = BeautifulSoup(
         respuestaCompeticiones.content, 'html.parser')
-    """obtener el valor de las etiquetas <span> con class team.name"""
+    nombresEquipos = htmlCompeticiones.find_all('td', {"class": "name"})
 
-    nombresEquipos = htmlCompeticiones.find_all('span', {"class": "team-name"})
+for equipo in nombresEquipos:
+    nombre_equipo = equipo.find("span", {"class": "team-name"}).text
+    if nombre_equipo in occurrences:
+        occurrences[nombre_equipo] += 1
+    else:
+        occurrences[nombre_equipo] = 1
 
-    for nombre_equipo in nombresEquipos:
-        nombres_equipos.append(nombre_equipo.text)
+    url = equipo.find("a", href=True)["href"]
+    url_equipo = url.replace("equipo", "equipo/plantilla")
+    urls_equipos.append(url_equipo)
+equipos_rep = []
 # obtenemos las URLs de los jugadores recorriendo cada equipo
-    """ for equipo in nombres_equipos:
-    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/" + \
-        equipo + "/#team_performance" """
-    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/barcelona   "
-    respuestaEquipos = requests.get(paginaEquipos, headers=headers)
+for url_equipo in urls_equipos:
+    respuestaEquipos = requests.get(url_equipo, headers=headers)
     htmlEquipos = BeautifulSoup(respuestaEquipos.content, 'html.parser')
-"""consultas para este URL:
-obtener el valor de las etiquetas <a> con class name
-"""
-for td in htmlEquipos.find_all("td", {"class": "name"}):
-    url_jugador = td.find("a", href=True)["href"]
-    urls_jugadores.append(url_jugador)
+    jugadores = htmlEquipos.find_all("td", {"class": "name"})
+    nombre_equipo = htmlEquipos.find("h2", {"class": "title ta-c"}).text
+    for i in range(len(jugadores)):
+        equipos_rep.append(nombre_equipo)
 
+    for jugador in jugadores:
+        url_jugador = jugador.find("a", href=True)["href"]
+        urls_jugadores.append(url_jugador)
+print(equipos_rep)
 
-df_final = pd.DataFrame()
 # ahora trabajaremos con cada jugador
 datos_jugadores = []
 for urljugador in urls_jugadores:
     respuestaJugadores = requests.get(urljugador, headers=headers)
     htmlJugadores = BeautifulSoup(respuestaJugadores.content, 'html.parser')
     dataPanelTitle = htmlJugadores.find("div", id="mod_player_stats")
-    divDataPanelTitle = htmlJugadores.find('div', class_="panel-title")
+    divDataPanelTitle = dataPanelTitle.find('div', class_="panel-title")
+    nombres_jugadores.append(divDataPanelTitle.text)
 
-    redesJugadores = htmlJugadores.find(
-        'div', class_="desc-boxes")
+    redesJugadores = htmlJugadores.find('div', class_="desc-boxes")
+    twitter_url = None
     if redesJugadores:
         twitter = redesJugadores.find_all(
             'div', class_=["sub-text2", "break-url"])
-        twitter_url = next((url.text for sub, url in zip(
-            twitter[::2], twitter[1::2]) if sub.text.strip() == 'Twitter'), None)
-        redes_jugadores.append(twitter_url)
-    else:
-        redes_jugadores.append(None)
-
-    divDataPanelHead = htmlJugadores.find('div', class_="panel-head")
-
-    posicionJugadores = htmlJugadores.find('div', class_="role-box")
+        for sub, url in zip(twitter[::2], twitter[1::2]):
+            if sub.text.strip() == 'Twitter':
+                twitter_url = url.text
+                break
+    redes_jugadores.append(twitter_url)
 
     for item_col in htmlJugadores.find_all('div', class_='compare-box'):
 
         main_role = item_col.find('div', class_="main-role")
         other_roles = item_col.find('ul', class_="position-list")
 
-        if main_role.text is not None:
+        if main_role:
             role_span = main_role.find_all('span')
-            if role_span is not None:
-                for i, element in enumerate(role_span):
-                    text = element.get_text()
-                    if i == 0:
-                        datosExtra["Posición principal"] = text
-                    elif i == 1:
-                        datosExtra["Posición princ %"] = text
+            if role_span:
+                datosExtra["Posición principal"] = role_span[0].text
+                datosExtra["Posición princ %"] = role_span[1].text
         else:
             datosExtra["Posición principal"] = None
             datosExtra["Posición princ %"] = None
 
-        if other_roles is not None:
+        if other_roles:
             other_role = other_roles.find_all('li')
-            if other_role is not None:
-                for i, element in enumerate(other_role):
-                    text = element.get_text()
-                    if text is not None:
-                        text_split = text.split('\n')
-                        posicion = text_split[1]
-                        porcentaje = text_split[2]
-                        datosExtra["Posición Alternativa"] = posicion
-                        datosExtra["Posicion Altern%"] = porcentaje
+            if other_role:
+                for element in other_role:
+                    text_split = element.text.strip().split('\n')
+                    posicion = text_split[0]
+                    porcentaje = text_split[1]
+                    datosExtra["Posición Alternativa"] = posicion
+                    datosExtra["Posicion Altern%"] = porcentaje
         else:
             datosExtra["Posición Alternativa"] = None
             datosExtra["Posición Altern%"] = None
 
-    for div in divDataPanelTitle:
-        nombres_jugadores.append(div.text)
     for item_col in htmlJugadores.find_all('div', class_='item-col'):
         main_line = item_col.find('div', class_='main-line')
         other_line = item_col.find('div', class_='other-line')
@@ -262,66 +260,63 @@ for urljugador in urls_jugadores:
                             "'", "")
                     elif text == "Goles/90'":
                         datosExtra["Goles"] = main_line.text
-
-    nombres_jugadores = [n for i, n in enumerate(
-        nombres_jugadores) if n not in nombres_jugadores[:i]]
-    divDataTableList = htmlJugadores.find_all("div", class_="table-row")
-    datos = {}
-    datos.update({"URL:": urljugador})
-    for div in divDataTableList:
-        divText = div.find('div')
-        for elements in divText.next_siblings:
-            try:
-                if not elements.isspace() and divText.text != "":
-                    if divText.text.strip() == "Fecha nacimiento":
-                        fecha_nacimiento = datetime.datetime.strptime(
-                            elements.text.strip(), "%d/%m/%Y")
-                        hoy = datetime.datetime.now()
-                        edad = hoy.year - fecha_nacimiento.year - \
-                            ((hoy.month, hoy.day) <
-                             (fecha_nacimiento.month, fecha_nacimiento.day))
-
-                    else:
-                        datos[divText.text.strip()] = elements.text.strip()
-                        link = elements.find("a", class_="image-row link")
-                        if link is not None:
-                            datos[link.text] = link["href"]
-            except TypeError:
-                datos[divText.text.strip()] = elements.text.strip()
-
+        for div in divDataPanelTitle:
+            nombres_jugadores.append(div.text)
+        nombres_jugadores = [n for i, n in enumerate(
+            nombres_jugadores) if n not in nombres_jugadores[:i]]
+        divDataTableList = htmlJugadores.find_all("div", class_="table-row")
+        datos = {}
+        datos.update({"URL:": urljugador})
+        for div in divDataTableList:
+            divText = div.find('div')
+            for elements in divText.next_siblings:
+                try:
+                    if not elements.isspace() and divText.text != "":
+                        if divText.text.strip() == "Fecha nacimiento":
+                            fecha_nacimiento = datetime.datetime.strptime(
+                                elements.text.strip(), "%d/%m/%Y")
+                            hoy = datetime.datetime.now()
+                            edad = hoy.year - fecha_nacimiento.year - \
+                                ((hoy.month, hoy.day) < (
+                                    fecha_nacimiento.month, fecha_nacimiento.day))
+                        else:
+                            datos[divText.text.strip()] = elements.text.strip()
+                            link = elements.find("a", class_="image-row link")
+                            if link is not None:
+                                datos[link.text] = link["href"]
+                except TypeError:
+                    datos[divText.text.strip()] = elements.text.strip()
     if datos["Fecha nacimiento"] != "":
         fe_nac = datetime.datetime.strptime(
             formato(datos["Fecha nacimiento"]), "%d/%B/%Y")
         edad = (datetime.datetime.now() - fe_nac).days / 365
     else:
         edad = None
+    edad_jugadores.append(math.trunc(edad))
+    # print(edad_jugadores)
     datos.update(datosExtra)
     datos_jugadores.append(datos)
-    edad_jugadores.append(math.trunc(edad))
-
 for d in datos_jugadores:
     for col in c:
         d.pop(col, None)
 
-    edad_jugadores = ajuste(edad_jugadores, len(nombres_jugadores))
+    for dict in datos_jugadores:
+        dict['Edad'] = edad_jugadores
+        dict['Temporada'] = "2022/23"
+        dict['Equipo'] = equipos_rep
+        dict['Nombre'] = nombres_jugadores
+        dict['Twitter'] = redes_jugadores
     df = pd.DataFrame(datos_jugadores)
 
-    df.drop_duplicates(inplace=True)
 
-    df.insert(loc=1, column='Temporada', value="2022/23")
-    df.insert(loc=2, column='Equipo', value=nombre_equipo.text)
-    df.insert(loc=3, column='Edad', value=edad_jugadores)
-    df.insert(loc=4, column='Nombre', value=nombres_jugadores)
-    df.insert(loc=20, column='Twitter', value=redes_jugadores)
+df = df.rename(columns=nuevos_nombres_columnas)
 
-    df = df.rename(columns=nuevos_nombres_columnas)
-
-    # reorder columns
-    df = df[['URL:', 'Temporada', 'Equipo', 'Edad', 'nombre', 'Fecha nacimiento',
-            'Lugar nacimiento', 'demarcacion', 'pierna', 'elo', 'potencial',
-             'Competicion', 'Competicion anterior', 'Equipo anterior', 'Fin de Contrato',
-             'Valor de Mercado', 'Goles', 'MinutosJugados', 'Agente', 'Salario', 'Twitter', 'Posicion principal',
-             'Posicion princ %', 'Posicion Alternativa', 'Posicion Altern%']]
+# reorder columns
+df = df[['URL:', 'Temporada', 'Equipo', 'Edad', 'nombre', 'Fecha nacimiento',
+        'Lugar nacimiento', 'demarcacion', 'pierna', 'elo', 'potencial',
+         'Competicion', 'Competicion anterior', 'Equipo anterior', 'Fin de Contrato',
+         'Valor de Mercado', 'Goles', 'MinutosJugados', 'Agente', 'Salario', 'Twitter', 'Posicion principal',
+         'Posicion princ %', 'Posicion Alternativa', 'Posicion Altern%']]
 
 
 df.to_csv(os.path.expanduser('~/Desktop\\') + r' jugadores.csv',
