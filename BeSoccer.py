@@ -46,22 +46,10 @@ equipo_jugadores = []
 urls_equipos = []
 redes_jugadores = []
 df_final = pd.DataFrame()
-"""
-# find span class action  y que dentro tenga un strong que ponga cesión al o cesion con
-nombres_jugadores_cedidos = []
-
-# <td data-content-tab="team_total">
-temporadas_jugadores = []
-asistencias__totales_jugadores = []
-partidos_totales_jugados = []  # <td data-content-tab="tprc1" class="grey">696</td>
-tarjetas_totales_jugadores = []
-
-    paginaEquipos = "https://es.besoccer.com/equipo/plantilla/barcelona" """
 nombres_jugadores = []
 edad_jugadores = []
 months = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
           "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-
 
 datosExtra = {}
 
@@ -133,7 +121,6 @@ datos = {
     "Dorsal más común": "",
     "Otros dorsales": "",
     "Etapa juveniles": "",
-
 }
 
 nuevos_nombres_columnas = {
@@ -196,7 +183,6 @@ for url_equipo in urls_equipos:
     for jugador in jugadores:
         url_jugador = jugador.find("a", href=True)["href"]
         urls_jugadores.append(url_jugador)
-print(equipos_rep)
 
 # ahora trabajaremos con cada jugador
 datos_jugadores = []
@@ -293,21 +279,22 @@ for urljugador in urls_jugadores:
     else:
         edad = None
     edad_jugadores.append(math.trunc(edad))
-    # print(edad_jugadores)
+
     datos.update(datosExtra)
     datos_jugadores.append(datos)
-for d in datos_jugadores:
-    for col in c:
-        d.pop(col, None)
-
+    for d in datos_jugadores:
+        for col in c:
+            d.pop(col, None)
+    campos = {'Edad': edad_jugadores, 'Temporada': "2022/23", 'Equipo': equipos_rep, 'Nombre': nombres_jugadores,
+              'Twitter': redes_jugadores}
     for dict in datos_jugadores:
-        dict['Edad'] = edad_jugadores
-        dict['Temporada'] = "2022/23"
-        dict['Equipo'] = equipos_rep
-        dict['Nombre'] = nombres_jugadores
-        dict['Twitter'] = redes_jugadores
+        for campo, valor in campos.items():
+            for i in range(len(valor)):
+                if campo != "Temporada":
+                    dict[campo] = valor[i]
+                else:
+                    dict[campo] = "2022/23"
     df = pd.DataFrame(datos_jugadores)
-
 
 df = df.rename(columns=nuevos_nombres_columnas)
 
@@ -317,7 +304,6 @@ df = df[['URL:', 'Temporada', 'Equipo', 'Edad', 'nombre', 'Fecha nacimiento',
          'Competicion', 'Competicion anterior', 'Equipo anterior', 'Fin de Contrato',
          'Valor de Mercado', 'Goles', 'MinutosJugados', 'Agente', 'Salario', 'Twitter', 'Posicion principal',
          'Posicion princ %', 'Posicion Alternativa', 'Posicion Altern%']]
-
 
 df.to_csv(os.path.expanduser('~/Desktop\\') + r' jugadores.csv',
           index=False, header=True)
