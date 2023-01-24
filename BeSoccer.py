@@ -31,11 +31,20 @@ def rellenar_array(arr, value, length):
 
 
 # primero definimos las competiciones a scrapear (para concatenar luego en el URL)
-nombres_competiciones = ["portugal"]
-"""
-, "segunda", "primera_division_rfef",
-                         "segunda_division_rfef", "tercera_division_rfef", "galicia", "liga_revelacao", "vitalis", "portugal"]"""
-""""""
+nombres_competiciones = ["primera", "segunda", "primera_division_rfef",
+                         "segunda_division_rfef", "tercera_division_rfef", "galicia", "liga_revelacao", "vitalis", "portugal"]
+
+# Mostrar al usuario las opciones disponibles
+print("Lista de competiciones disponibles:")
+for i, nombre in enumerate(nombres_competiciones):
+    print(f"{i}. {nombre}")
+
+# Pide al usuario que elija una competición
+competicion_elegida = int(
+    input("Elija una competición tecleando un número (0-8): "))
+
+# Selecciona el nombre de la competición elegida
+nombre_competicion = nombres_competiciones[competicion_elegida]
 
 # segundo necesitamos saber cuántos equipos hay por liga
 nombres_equipos = []
@@ -153,20 +162,15 @@ nuevos_nombres_columnas = {
 occurrences = {}
 
 # obtenemos los nombres de los equipos para poder recorrer luego cada uno por sus jugadores
-for competicion in nombres_competiciones:
-    paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{competicion}/2023"
-    respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
-    htmlCompeticiones = BeautifulSoup(
-        respuestaCompeticiones.content, 'html.parser')
-    nombresEquipos = htmlCompeticiones.find_all('td', {"class": "name"})
+
+paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{nombre_competicion}/2023"
+respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
+htmlCompeticiones = BeautifulSoup(
+    respuestaCompeticiones.content, 'html.parser')
+nombresEquipos = htmlCompeticiones.find_all('td', {"class": "name"})
 
 for equipo in nombresEquipos:
     nombre_equipo = equipo.find("span", {"class": "team-name"}).text
-    if nombre_equipo in occurrences:
-        occurrences[nombre_equipo] += 1
-    else:
-        occurrences[nombre_equipo] = 1
-
     url = equipo.find("a", href=True)["href"]
     url_equipo = url.replace("equipo", "equipo/plantilla")
     urls_equipos.append(url_equipo)
@@ -177,6 +181,11 @@ for url_equipo in urls_equipos:
     htmlEquipos = BeautifulSoup(respuestaEquipos.content, 'html.parser')
     jugadores = htmlEquipos.find_all("td", {"class": "name"})
     nombre_equipo = htmlEquipos.find("h2", {"class": "title ta-c"}).text
+    if nombre_equipo in occurrences:
+        occurrences[nombre_equipo] += 1
+    else:
+        occurrences[nombre_equipo] = 1
+
     for i in range(len(jugadores)):
         equipos_rep.append(nombre_equipo)
 
@@ -279,23 +288,18 @@ for urljugador in urls_jugadores:
     else:
         edad = None
     edad_jugadores.append(math.trunc(edad))
-
+    min_length = min(len(edad_jugadores), len(equipos_rep),
+                     len(nombres_jugadores), len(redes_jugadores))
+    for i in range(min_length):
+        datosExtra.update({'Edad': edad_jugadores[i], 'Temporada': "2022/23",
+                          'Equipo': equipos_rep[i], 'Nombre': nombres_jugadores[i], 'Twitter': redes_jugadores[i]})
     datos.update(datosExtra)
     datos_jugadores.append(datos)
     for d in datos_jugadores:
         for col in c:
             d.pop(col, None)
-    campos = {'Edad': edad_jugadores, 'Temporada': "2022/23", 'Equipo': equipos_rep, 'Nombre': nombres_jugadores,
-              'Twitter': redes_jugadores}
-    for dict in datos_jugadores:
-        for campo, valor in campos.items():
-            for i in range(len(valor)):
-                if campo != "Temporada":
-                    dict[campo] = valor[i]
-                else:
-                    dict[campo] = "2022/23"
-    df = pd.DataFrame(datos_jugadores)
 
+    df = pd.DataFrame(datos_jugadores)
 df = df.rename(columns=nuevos_nombres_columnas)
 
 # reorder columns
@@ -305,8 +309,8 @@ df = df[['URL:', 'Temporada', 'Equipo', 'Edad', 'nombre', 'Fecha nacimiento',
          'Valor de Mercado', 'Goles', 'MinutosJugados', 'Agente', 'Salario', 'Twitter', 'Posicion principal',
          'Posicion princ %', 'Posicion Alternativa', 'Posicion Altern%']]
 
-df.to_csv(os.path.expanduser('~/Desktop\\') + r' jugadores.csv',
-          index=False, header=True)
+df.to_csv(os.path.expanduser('~/Desktop\\') + "España-" +
+          nombre_competicion + ".csv", index=False, header=True)
 
 fin = time.time()
 
