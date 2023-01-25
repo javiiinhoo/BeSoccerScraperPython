@@ -16,20 +16,6 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0;Win64) AppleWebkit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36'}
 # declaramos todos los arrays necesarios para el posterior dataframe
 
-
-def ajuste(arr, len):
-    return arr[:len]
-
-
-def rellenar_array(arr, value, length):
-    # Obtenemos la diferencia entre la longitud actual y la deseada
-    diff = length - len(arr)
-
-    # Agregamos el valor al array la cantidad de veces necesarias
-    for i in range(diff):
-        arr.append(value)
-
-
 # primero definimos las competiciones a scrapear (para concatenar luego en el URL)
 nombres_competiciones = ["primera", "segunda", "primera_division_rfef",
                          "segunda_division_rfef", "tercera_division_rfef", "galicia", "liga_revelacao", "vitalis", "portugal"]
@@ -64,7 +50,7 @@ datosExtra = {}
 
 
 def formato(date_string):
-    # Translate the month name to English
+    # traducción al inglés para darle formato
     month_translations = {
         "enero": "january",
         "febrero": "february",
@@ -87,19 +73,6 @@ def formato(date_string):
     new_date_string = new_date_string.replace(
         date_object.strftime("%B"), f'{month_number:02}')
     return new_date_string
-
-
-def arregla(arr):
-    new_arr = []
-    for element in arr:
-        # Remove diacritics (accents)
-        element = unicodedata.normalize(
-            'NFKD', element).encode('ASCII', 'ignore').decode()
-        # Replace spaces and certain text with underscores
-        element = re.sub(
-            r"\s|R\.|RC Deportivo\.|RC\.|RM\.|AD Mérida\.", "_", element)
-        new_arr.append(element)
-    return new_arr
 
 
 c = ["País nacimiento", "Continente nacimiento", "Región de nacimiento",
@@ -162,12 +135,12 @@ nuevos_nombres_columnas = {
 occurrences = {}
 
 # obtenemos los nombres de los equipos para poder recorrer luego cada uno por sus jugadores
-
-paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{nombre_competicion}/2023"
-respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
-htmlCompeticiones = BeautifulSoup(
-    respuestaCompeticiones.content, 'html.parser')
-nombresEquipos = htmlCompeticiones.find_all('td', {"class": "name"})
+for competicion in nombres_competiciones:
+    paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{competicion}/2023"
+    respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
+    htmlCompeticiones = BeautifulSoup(
+        respuestaCompeticiones.content, 'html.parser')
+    nombresEquipos = htmlCompeticiones.find_all('td', {"class": "name"})
 
 for equipo in nombresEquipos:
     nombre_equipo = equipo.find("span", {"class": "team-name"}).text
@@ -183,8 +156,6 @@ for url_equipo in urls_equipos:
     nombre_equipo = htmlEquipos.find("h2", {"class": "title ta-c"}).text
     if nombre_equipo in occurrences:
         occurrences[nombre_equipo] += 1
-    else:
-        occurrences[nombre_equipo] = 1
 
     for i in range(len(jugadores)):
         equipos_rep.append(nombre_equipo)
@@ -243,6 +214,7 @@ for urljugador in urls_jugadores:
     for item_col in htmlJugadores.find_all('div', class_='item-col'):
         main_line = item_col.find('div', class_='main-line')
         other_line = item_col.find('div', class_='other-line')
+
         if main_line and other_line:
             other_line_texts = other_line.find_all('div')
             if len(other_line_texts) > 1:
@@ -255,13 +227,17 @@ for urljugador in urls_jugadores:
                             "'", "")
                     elif text == "Goles/90'":
                         datosExtra["Goles"] = main_line.text
+
         for div in divDataPanelTitle:
             nombres_jugadores.append(div.text)
+
         nombres_jugadores = [n for i, n in enumerate(
             nombres_jugadores) if n not in nombres_jugadores[:i]]
         divDataTableList = htmlJugadores.find_all("div", class_="table-row")
+
         datos = {}
         datos.update({"URL:": urljugador})
+
         for div in divDataTableList:
             divText = div.find('div')
             for elements in divText.next_siblings:
@@ -281,12 +257,14 @@ for urljugador in urls_jugadores:
                                 datos[link.text] = link["href"]
                 except TypeError:
                     datos[divText.text.strip()] = elements.text.strip()
+
     if datos["Fecha nacimiento"] != "":
         fe_nac = datetime.datetime.strptime(
             formato(datos["Fecha nacimiento"]), "%d/%B/%Y")
         edad = (datetime.datetime.now() - fe_nac).days / 365
     else:
         edad = None
+
     edad_jugadores.append(math.trunc(edad))
     min_length = min(len(edad_jugadores), len(equipos_rep),
                      len(nombres_jugadores), len(redes_jugadores))
@@ -295,6 +273,7 @@ for urljugador in urls_jugadores:
                           'Equipo': equipos_rep[i], 'Nombre': nombres_jugadores[i], 'Twitter': redes_jugadores[i]})
     datos.update(datosExtra)
     datos_jugadores.append(datos)
+
     for d in datos_jugadores:
         for col in c:
             d.pop(col, None)
@@ -309,6 +288,7 @@ df = df[['URL:', 'Temporada', 'Equipo', 'Edad', 'nombre', 'Fecha nacimiento',
          'Valor de Mercado', 'Goles', 'MinutosJugados', 'Agente', 'Salario', 'Twitter', 'Posicion principal',
          'Posicion princ %', 'Posicion Alternativa', 'Posicion Altern%']]
 
+# df.drop_duplicates
 df.to_csv(os.path.expanduser('~/Desktop\\') + "España-" +
           nombre_competicion + ".csv", index=False, header=True)
 
