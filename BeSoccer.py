@@ -222,13 +222,16 @@ for urljugador in urls_jugadores:
                             datos[link.text] = link["href"]
             except TypeError:
                 datos[divText.text.strip()] = elements.text.strip()
-    if datos["Fecha nacimiento"] != "":
+    if "Fecha nacimiento" in datos and datos["Fecha nacimiento"] != "":
         fe_nac = datetime.datetime.strptime(
             formato(datos["Fecha nacimiento"]), "%d/%B/%Y")
         edad = (datetime.datetime.now() - fe_nac).days / 365
     else:
         edad = None
-    edad_jugadores.append(math.trunc(edad))
+    if edad is not None:
+        edad_jugadores.append(math.trunc(edad))
+    else:
+        edad_jugadores.append(None)
     min_length = min(len(edad_jugadores), len(equipos_rep),
                      len(nombres_jugadores), len(redes_jugadores))
 
