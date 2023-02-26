@@ -67,6 +67,27 @@ def elegir_competicion(nombres_competiciones):
             print("Por favor introduce un número")
 
 
+def elegir_grupo(nombres_grupos_nac):
+    while True:
+        print("Grupos disponibles:")
+        for i, nombre in enumerate(nombres_grupos_nac):
+            print(f"{i}. {nombre}")
+        try:
+            grupo_elegido = int(
+                input(
+                    "Elija una competición tecleando un número (0-{}): ".format(
+                        len(nombres_grupos_nac) - 1
+                    )
+                )
+            )
+            if 0 <= grupo_elegido <= len(nombres_grupos_nac) - 1:
+                return grupo_elegido
+            else:
+                print("Por favor elija un número dentro del rango")
+        except ValueError:
+            print("Por favor introduce un número")
+
+
 nombres_grupos_nac = [
     "grupo1",
     "grupo2",
@@ -75,9 +96,7 @@ nombres_grupos_nac = [
     "grupo5",
     "grupo6",
     "grupo7",
-
-]
-"""   "grupo8",
+    "grupo8",
     "grupo9",
     "grupo10",
     "grupo11",
@@ -86,7 +105,8 @@ nombres_grupos_nac = [
     "grupo14",
     "grupo15",
     "grupo16",
-    "grupo17", """
+    "grupo17",
+]
 nombres_competiciones = [
     "primera",
     "segunda",
@@ -101,6 +121,7 @@ nombres_competiciones = [
     "division_honor_juvenil",
 ]
 competicion_elegida = elegir_competicion(nombres_competiciones)
+grupo_elegido = elegir_grupo(nombres_grupos_nac)
 
 
 datos_totales = []
@@ -145,53 +166,50 @@ def filtrar_columnas(diccionario):
 
 # Selecciona el nombre de la competición elegida
 nombre_competicion = nombres_competiciones[competicion_elegida]
+nombre_grupo = nombres_grupos_nac[grupo_elegido]
 
 # guardamos los urls de los jugadores y equipos para poder iterar sobre ellos en las consultas y más tarde meterlos en el .csv
 
 urls_equipos = []
 
 # en este dict guardamos los datos que no tienen las mismas etiquetas a la hora de acceder
+
 datos = {}
+
+
+redes_jugadores = []
+nombres_jugadores = []
+edad_jugadores = []
+
 # recorremos las ligas
-for grupo in nombres_grupos_nac:
-    redes_jugadores = []
-    nombres_jugadores = []
-    edad_jugadores = []
-    paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{nombre_competicion}/2023/{grupo}"
-    respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
-    htmlCompeticiones = BeautifulSoup(
-        respuestaCompeticiones.content, "html.parser")
-    nombresEquipos = htmlCompeticiones.find_all("td", {"class": "name"})
+paginaCompeticiones = f"https://es.besoccer.com/competicion/clasificacion/{nombre_competicion}/2023/{nombre_grupo}"
+respuestaCompeticiones = requests.get(paginaCompeticiones, headers=headers)
+htmlCompeticiones = BeautifulSoup(
+    respuestaCompeticiones.content, "html.parser")
+nombresEquipos = htmlCompeticiones.find_all("td", {"class": "name"})
 
-    # y ahora guardamos esos enlaces a los equipos
-    urls_equipos = [
-        equipo.find("a", href=True)["href"].replace(
-            "equipo", "equipo/plantilla")
-        for equipo in nombresEquipos
-        if equipo.find("span", {"class": "team-name"})
-    ]
+# y ahora guardamos esos enlaces a los equipos
+urls_equipos = [
+    equipo.find("a", href=True)["href"].replace("equipo", "equipo/plantilla")
+    for equipo in nombresEquipos
+    if equipo.find("span", {"class": "team-name"})
+]
 
-    # una vez tenemos los equipos de la competición elegida, recorremos todos los jugadores de cada uno
-    session = requests.Session()
+# una vez tenemos los equipos de la competición elegida, recorremos todos los jugadores de cada uno
+session = requests.Session()
 
-    occurrences = defaultdict(int)
+jugadores = []
+equipos_rep = []
+urls_jugadores = []
+occurrences = defaultdict(int)
 
-    equipos_rep = []
-    urls_jugadores = []
-    from collections import defaultdict
-
-    jugadores = []
-    equipos_rep = []
-    urls_jugadores = []
-    occurrences = defaultdict(int)
-
-    for url_equipo in urls_equipos:
-        response = session.get(url_equipo, headers=headers)
-        htmlEquipos = BeautifulSoup(response.text, "html.parser")
-        nombre_equipo = htmlEquipos.select_one("h2.title.ta-c").text
-        occurrences[nombre_equipo] += 1
-        jugadores += htmlEquipos.select("td.name")
-        equipos_rep += [nombre_equipo] * len(jugadores)
+for url_equipo in urls_equipos:
+    response = session.get(url_equipo, headers=headers)
+    htmlEquipos = BeautifulSoup(response.text, "html.parser")
+    nombre_equipo = htmlEquipos.select_one("h2.title.ta-c").text
+    occurrences[nombre_equipo] += 1
+    jugadores += htmlEquipos.select("td.name")
+    equipos_rep += [nombre_equipo] * len(jugadores)
 
     urls_jugadores = [jugador.select_one(
         "a[href]")["href"] for jugador in jugadores]
@@ -200,8 +218,6 @@ for grupo in nombres_grupos_nac:
         respuestaJugadores = requests.get(urljugador, headers=headers)
         htmlJugadores = BeautifulSoup(
             respuestaJugadores.content, "html.parser")
-        dataPanelTitle = htmlJugadores.find("div", id="mod_player_stats")
-        divDataPanelTitle = dataPanelTitle.find("div", class_="panel-title")
 
         redesJugadores = htmlJugadores.find("div", class_="desc-boxes")
         twitter_url = None
@@ -255,7 +271,8 @@ for grupo in nombres_grupos_nac:
                     elif text == "Goles/90'":
                         datos["Goles"] = main_line.text
 
-        divDataPanelTitle = htmlJugadores.find_all("div", class_="panel-title")
+        divDataPanelTitle = htmlJugadores.find_all(
+            "div", class_="panel-subtitle")
 
         for div in divDataPanelTitle:
             if div.text not in nombres_jugadores:
@@ -265,16 +282,24 @@ for grupo in nombres_grupos_nac:
 
         for div in divDataTableList:
             divText = div.find("div")
+            if divText is not None:
+                continue
             for elements in divText.next_siblings:
                 if elements.isspace() or divText.text == "":
                     continue
                 if divText.text.strip() == "Fecha nacimiento":
                     fecha_nacimiento = datetime.datetime.strptime(
-                        elements.text.strip(), "%d/%m/%Y")
+                        elements.text.strip(), "%d/%m/%Y"
+                    )
                     hoy = datetime.datetime.now()
-                    edad = hoy.year - fecha_nacimiento.year - \
-                        ((hoy.month, hoy.day) <
-                         (fecha_nacimiento.month, fecha_nacimiento.day))
+                    edad = (
+                        hoy.year
+                        - fecha_nacimiento.year
+                        - (
+                            (hoy.month, hoy.day)
+                            < (fecha_nacimiento.month, fecha_nacimiento.day)
+                        )
+                    )
                 else:
                     datos[divText.text.strip()] = elements.text.strip()
                     link = elements.find("a", class_="image-row link")
@@ -283,33 +308,62 @@ for grupo in nombres_grupos_nac:
                 break
         if "Fecha nacimiento" in datos and datos["Fecha nacimiento"] != "":
             fe_nac = datetime.datetime.strptime(
-                formato(datos["Fecha nacimiento"]), "%d/%B/%Y")
+                formato(datos["Fecha nacimiento"]), "%d/%B/%Y"
+            )
             edad = math.trunc((datetime.datetime.now() - fe_nac).days / 365)
         else:
             edad = None
 
         edad_jugadores.append(edad)
 
-        min_length = min(len(edad_jugadores), len(equipos_rep),
-                         len(nombres_jugadores), len(redes_jugadores))
+        min_length = min(
+            len(edad_jugadores),
+            len(equipos_rep),
+            len(nombres_jugadores),
+            len(redes_jugadores),
+        )
+        for i in range(min_length):
 
-        datos.update({
-            "Edad": [str(edad_jugadores[i]) for i in range(min_length)],
-            "Temporada": ["2022/23" for i in range(min_length)],
-            "Equipo": equipos_rep[:min_length],
-            "Nombre": nombres_jugadores[:min_length],
-            "Twitter": redes_jugadores[:min_length]
-        })
+            datos.update(
+                {
+                    "Edad": str(edad_jugadores[i]),
+                    "Temporada": "2022/23",
+                    "Equipo": equipos_rep[i],
+                    "Nombre": nombres_jugadores[i],
+                    "Twitter": redes_jugadores[i],
+                }
+            )
 
         filtrar_columnas(datos)
         datos_totales.append(datos)
-df = pd.DataFrame(datos_totales)
-columnas_nuevas = ["URL", "Temporada", "Equipo", "Edad", "Nombre",
-                   "Fecha nacimiento", "Lugar nacimiento", "demarcacion", "pierna", "elo",
-                   "potencial", "Competicion", "Competicion anterior", "Equipo anterior",
-                   "Fin de Contrato", "Valor de Mercado", "Goles", "MinutosJugados", "Agente",
-                   "Salario", "Twitter", "Posicion principal", "Posicion princ %",
-                   "Posicion Alternativa", "Posicion Altern%",]
+    df = pd.DataFrame(datos_totales)
+columnas_nuevas = [
+    "URL",
+    "Temporada",
+    "Equipo",
+    "Edad",
+    "Nombre",
+    "Fecha nacimiento",
+    "Lugar nacimiento",
+    "demarcacion",
+    "pierna",
+    "elo",
+    "potencial",
+    "Competicion",
+    "Competicion anterior",
+    "Equipo anterior",
+    "Fin de Contrato",
+    "Valor de Mercado",
+    "Goles",
+    "MinutosJugados",
+    "Agente",
+    "Salario",
+    "Twitter",
+    "Posicion principal",
+    "Posicion princ %",
+    "Posicion Alternativa",
+    "Posicion Altern%",
+]
 
 nuevos_nombres = {
     "Localidad nacimiento": "Lugar nacimiento",
@@ -330,8 +384,12 @@ df.rename(columns=nuevos_nombres, inplace=True)
 print(df)
 # exportamos a csv
 df.to_csv(
-    os.path.expanduser("~/Desktop\\") + "España-" +
-    nombre_competicion + ".csv",
+    os.path.expanduser("~/Desktop\\")
+    + "España-"
+    + nombre_competicion
+    + " - "
+    + nombre_grupo
+    + ".csv",
     index=False,
     header=True,
 )

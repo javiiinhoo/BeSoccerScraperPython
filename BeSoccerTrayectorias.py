@@ -1,7 +1,4 @@
-from typing import Dict, Tuple, Optional, Union, List
 import pandas as pd
-from itertools import groupby
-from collections import defaultdict
 import requests
 import os
 import time
@@ -19,19 +16,17 @@ headers = {'user-agent': ua.random}
 
 
 def elegir_competicion(nombres_competiciones):
+    opciones = "\n".join(
+        [f"{i}. {nombre}" for i, nombre in enumerate(nombres_competiciones)])
     while True:
         print("Lista de competiciones disponibles:")
-        for i, nombre in enumerate(nombres_competiciones):
-            print(f"{i}. {nombre}")
-        try:
-            competicion_elegida = int(input(
-                "Elija una competición tecleando un número (0-{}): ".format(len(nombres_competiciones) - 1)))
-            if 0 <= competicion_elegida <= len(nombres_competiciones) - 1:
-                return competicion_elegida
-            else:
-                print("Por favor elija un número dentro del rango")
-        except ValueError:
-            print("Por favor introduce un número")
+        print(opciones)
+        competicion_elegida = input(
+            f"Elija una competición tecleando un número (0-{len(nombres_competiciones) - 1}): ")
+        if competicion_elegida.isdigit() and 0 <= int(competicion_elegida) <= len(nombres_competiciones) - 1:
+            return int(competicion_elegida)
+        else:
+            print("Por favor elija un número dentro del rango")
 
 
 nombres_competiciones = [
@@ -64,39 +59,55 @@ urls_trayectorias = [jugador.find("a", href=True)["href"].replace("jugador", "ju
                      for url_equipo in urls_equipos
                      for jugador in BeautifulSoup(session.get(url_equipo, headers=headers).content, 'html.parser').find_all("td", {"class": "name"})]
 
-datos: Dict[str, Tuple[Optional[str], int]] = {}
-equipo_actual: Optional[str] = None
-jugador_actual: Optional[str] = None
-total_pj: int = 0
-
-for url in urls_trayectorias:
-    html_trayectoria = BeautifulSoup(requests.get(
-        url, headers=headers).content, 'html.parser')
-    equipo = html_trayectoria.find(
+"""equipo = html_trayectoria.find(
         "a", {"class": "shield"}).find_all('span')[0].text
     pj_carrera = int(html_trayectoria.find('td', {'data-content-tab': 'tprc1'}).text) if html_trayectoria.find(
-        'td', {'data-content-tab': 'tprc1'}).text.isdigit() else 0
-    datos[url] = {'url:': url, 'Equipo Carrera': equipo,
-                  'Pj Carrera': pj_carrera}
-    if equipo_actual is None or equipo_actual != equipo:
-        if jugador_actual is not None:
-            datos[jugador_actual] = (equipo_actual, total_pj)
-            datos[url] = (equipo_actual, total_pj)
-        equipo_actual = equipo
-        jugador_actual = url
-        total_pj = pj_carrera
-    else:
-        total_pj += pj_carrera
-    if url == urls_trayectorias[-1] or urls_trayectorias[urls_trayectorias.index(url) + 1].split('/')[5] != url.split('/')[5]:
-        datos[jugador_actual] = (equipo_actual, total_pj)
-        datos[url] = (equipo_actual, total_pj)
-        datos[f'{url}_row'] = (url, None, total_pj)
+        'td', {'data-content-tab': 'tprc1'}).text.isdigit() else 0"""
+# Definir una lista vacía para almacenar los datos
+datos = {"url": [], "Equipo Carrera": [], "Pj Carrera": []}
 
-datos = {k: v for k, v in datos.items() if v[1] > 0}
-datos = {k: (v[0] if v else None, v[1]) for k, v in datos.items()}
-datos = {k: (v[0] if v else None, v[1]) for k, v in datos.items()}
+# Iterar sobre cada URL en urls_trayectorias
+for url in urls_trayectorias:
+    # Hacer una solicitud HTTP y obtener el contenido HTML
+    content = session.get(url, headers=headers).content
+    soup = BeautifulSoup(content, 'html.parser')
 
-df = pd.DataFrame.from_dict(datos)
+    trajectory_divs = soup.find_all('div', {'class': 'trajectory'})
+
+    for trajectory_div in trajectory_divs:
+        h2 = trajectory_div.find('h2', text='Resumen carrera')
+        if h2:
+            # Accede al div que contiene el h2 que necesitas
+            div = h2.parent.parent
+
+    # Buscar todas las filas con clase "row-body color-dark" dentro del div
+    rows = div.find_all("tr", {"class": "row-body color-dark"})
+    celdas_grises = div.find_all("td", {"class": "grey"})
+
+    datos_celdas_grises = []
+
+    # Obtener los datos de las filas de datos
+    for row in rows:
+        datos = {}
+        datos["url"] = url
+        datos["Equipo Carrera"] = row.find("span").text.strip()
+        datos["Pj Carrera"] = row.find("td", class_="br-left").text.strip()
+
+        datos_totales.append(datos)
+
+    # Obtener los datos de las celdas grises
+    datos["url"] = url
+    datos["Equipo Carrera"] = celdas_grises[0].text.strip()
+    datos["Pj Carrera"] = celdas_grises[1].text.strip()
+
+    datos_celdas_grises.append(datos)
+
+    # Combinar los datos en una única lista
+    datos_totales += datos_celdas_grises
+
+df = pd.DataFrame(datos_totales)
+
+# Exportar el DataFrame a un archivo CSV
 df.to_csv(os.path.expanduser('~/Desktop\\') +
           nombre_competicion + "_trayectoria.csv", index=False, header=True)
 fin = time.time()
